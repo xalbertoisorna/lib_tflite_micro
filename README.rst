@@ -58,3 +58,39 @@ The command line interface is built by invoking ``make install`` at top level or
 inside ``host_command_line_interface``.
 
 The command line interface cane be tested by invoking ``make test`` at either level. 
+
+Batched INT8 convolution reproducer
+----------------------------------
+
+``XC_conv2d_v2`` currently requires batch size 1 and returns ``kTfLiteError``
+for other batch sizes. The batch-2 reproducer therefore fails at invocation.
+
+``tests/conv2d/src/conv2d_int8.tflite`` contains one INT8 identity 1x1 convolution:
+input/output shape ``[2,1,1,4]``, identity weights shaped ``[4,1,1,4]``, zero
+biases, unit quantization scales, zero zero-points, VALID padding and unit
+stride/dilation. Its identity output has been verified with the TFLite reference
+interpreter.
+
+As in the hello-world example, CMake runs ``xcore-opt`` to generate the optimized
+model and its C++ API. Generated files stay in the build directory.
+``tests/conv2d/src/main.cpp`` calls ``model_init`` and ``model_invoke``, prints
+both batches and returns nonzero on any mismatch. There is no handwritten
+operator setup or manual batch loop around inference. This reproduces the
+suspected runtime batching bug and is intentionally not marked as an expected
+failure.
+
+With ``xcore-opt`` on PATH, the VX4 XTC tools activated, and
+``lib/libxtflitemicro_vx4b.a`` built::
+
+  cmake -S tests -B tests/build_vx4 \
+    -DCMAKE_TOOLCHAIN_FILE="$PWD/lib_tflite_micro/submodules/xmos_cmake_toolchain/vx4_xcc.cmake"
+  cmake --build tests/build_vx4 --target conv2d
+  ctest --test-dir tests/build_vx4 -R '^conv2d$' --output-on-failure
+
+Or use the pytest wrapper with the same activated tools::
+
+  python -m pytest tests/test_conv2d.py --hw-target=vx4-xcc -v
+
+The default ``--hw-target=native`` runs against the host library. The pytest
+wrapper propagates the CTest failure rather than marking this regression as
+an expected failure.

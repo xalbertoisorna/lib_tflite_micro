@@ -435,26 +435,30 @@ TfLiteStatus Eval(TfLiteContext *context, TfLiteNode *node) {
     }
   }
 
+  const unsigned batch_count = input_tensor->dims->data[0];
+  const unsigned input_batch_bytes = EvalTensorBytes(input_tensor) / batch_count;
+  const unsigned output_batch_bytes = EvalTensorBytes(output_tensor) / batch_count;
+
   // todo - this second for-loop is unpleasant
-  for (int t = 0; t < n_threads - 1; ++t) {
-    thread_variable_setup(thread_scratch[t], op_data->threads[t].kparams,
-                          xc_config->thread_info.thread_ids.id[t]);
+  for (unsigned batch = 0; batch < batch_count; ++batch) {
+    for (unsigned t = 0; t < n_threads - 1; ++t) {
+      thread_variable_setup(
+        thread_scratch[t], 
+        op_data->threads[t].kparams,
+        xc_config->thread_info.thread_ids.id[t]
+      );
+    }
+    // Now set up shared data, shared function pointer, and data for final thread.
+    thread_call(
+      (void *)&shared_data, 
+      thread_scratch[n_threads - 1],
+      op_data->threads[n_threads - 1].kparams,
+      (thread_function_pointer_t)conv2d_v2_thread_worker,
+      &xc_config->thread_info
+    );
+    shared_data.X += input_batch_bytes;
+    shared_data.Y += output_batch_bytes;
   }
-
-#ifdef TFLMC_CONV2D_PROFILE
-  asm volatile("gettime %0" : "=r"(op_data->threadsStartTime));
-#endif
-
-  // Now set up shared data, shared function pointer, and data for final thread.
-  thread_call((void *)&shared_data, thread_scratch[n_threads - 1],
-              op_data->threads[n_threads - 1].kparams,
-              (thread_function_pointer_t)conv2d_v2_thread_worker,
-              &xc_config->thread_info);
-
-#ifdef TFLMC_CONV2D_PROFILE
-  asm volatile("gettime %0" : "=r"(op_data->threadsDoneTime));
-#endif
-
   return kTfLiteOk;
 }
 

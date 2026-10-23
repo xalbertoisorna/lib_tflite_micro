@@ -60,5 +60,6 @@ enable_testing()
 add_subdirectory(avg_pool avg_pool_test)
 # the generated model code uses GCC/Clang-only extensions that MSVC cannot compile
 if(NOT MSVC)
+  add_subdirectory(conv2d conv2d_test)
   add_subdirectory(hello_world)
 endif()
