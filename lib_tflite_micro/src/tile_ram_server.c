@@ -23,7 +23,7 @@
                                ((VERSION_MAJOR^0xff) << 16) |\
                                ((VERSION_MINOR^0xff) << 24))
 
-void tile_ram_server(chanend_t *c_tile_ram, flash_t *headers, int n_tile_ram,
+void tile_ram_server(chanend_t *c_tile_ram, tile_ram_header_t *headers, int n_tile_ram,
                      const int8_t *tile_ram) {
     #ifdef __XS3A__
     uint32_t tmp = ((uint32_t*)tile_ram)[0];
@@ -31,27 +31,27 @@ void tile_ram_server(chanend_t *c_tile_ram, flash_t *headers, int n_tile_ram,
         printstr("version check error");
         asm("clre; waiteu");
     }
-    memcpy(headers, tile_ram + 4, (n_tile_ram * sizeof(flash_t)));
+    memcpy(headers, tile_ram + 4, (n_tile_ram * sizeof(tile_ram_header_t)));
     assert(n_tile_ram == 1);
     int tile_ram_server_alive = 1;
     while(tile_ram_server_alive) {
         int byte_address, number_bytes;
-        flash_command_t cmd;
+        weights_server_cmd_t cmd;
         int i = 0;           // TODO: extend SELECT-FOR-LOOP
         cmd = chan_in_word(c_tile_ram[i]);
-        //if (cmd == FLASH_READ_PARAMETERS || cmd == FLASH_READ_PARAMETERS_COMPRESSED_FLOAT) {
-        if (cmd == FLASH_READ_PARAMETERS) {
+        //if (cmd == WEIGHTS_READ_PARAMETERS || cmd == WEIGHTS_READ_PARAMETERS_COMPRESSED_FLOAT) {
+        if (cmd == WEIGHTS_READ_PARAMETERS) {
             // Set parallel mode
             chan_out_word(c_tile_ram[i], 1);
             byte_address = chan_in_word(c_tile_ram[i]);
             number_bytes   = chan_in_word(c_tile_ram[i]);
             byte_address = headers[i].parameters_start + byte_address;
-        } else if (cmd == FLASH_SERVER_INIT) {
+        } else if (cmd == WEIGHTS_SERVER_INIT) {
             ;  // NO init required
-        } else if (cmd == FLASH_SERVER_QUIT) {
+        } else if (cmd == WEIGHTS_SERVER_QUIT) {
             tile_ram_server_alive = 0;
         }
-        if (tile_ram_server_alive && cmd != FLASH_SERVER_INIT) {
+        if (tile_ram_server_alive && cmd != WEIGHTS_SERVER_INIT) {
             memory_parallel_send(c_tile_ram[i], &((uint8_t *)tile_ram)[byte_address], number_bytes);
         }
     }

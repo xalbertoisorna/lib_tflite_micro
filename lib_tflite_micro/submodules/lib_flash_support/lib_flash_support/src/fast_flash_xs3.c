@@ -1,5 +1,5 @@
-#if defined(__xcore__)
-//NOTE: flash support is only enabled on xs3
+// XS3 flash backend: libquadflash + bit-banged fast reads (fast_flash_read_loop_xs3.S)
+#if defined(__XS3A__)
 
 #include <xs1.h>
 #include <platform.h>
@@ -11,6 +11,7 @@
 #include <xcore/clock.h>
 
 #include "fast_flash.h"
+#include <quadflashlib.h>   // fl_setBootPartitionSize()
 
 static int best_read_adj;
 static int data_offset;
@@ -64,12 +65,14 @@ static void set_pad_delay(port_t p, int pad_delay) {
 static void ports_clocks_setup(fl_QSPIPorts *qspi)
 {
     unsigned int ref_clk_div;
-    #ifdef __XS3A__
     read_sswitch_reg(get_local_tile_id(), XS1_SSWITCH_REF_CLK_DIVIDER_NUM, &ref_clk_div);
-    #elif __VX4B__
-    ref_clk_div = 6;
-    #endif
     clk_divider = (ref_clk_div + 1)/2;
+    if (clk_divider == 0) {
+        // The reference clock divider register reads 0 under xsim (and a divider
+        // of 0 would skip the whole timing sweep below). Fall back to 3, i.e.
+        // 100MHz SPI from a 600MHz core.
+        clk_divider = 3;
+    }
     // Define a clock source - core clock divided by (2*clk_divider)
 
     clock_enable(qspi->qspiClkblk);
@@ -98,15 +101,9 @@ static void ports_clocks_setup(fl_QSPIPorts *qspi)
     // Setting all ports to the same drive to ensure we don't introduce any extra skew between outputs.
     // Downside is extra EMI.
 #ifdef HIGH_DRIVE_8MA
-    #ifdef __XS3A__
     asm volatile ("setc res[%0], %1" :: "r" (qspi->qspiSCLK), "r" (PORT_PAD_CTL));
     asm volatile ("setc res[%0], %1" :: "r" (qspi->qspiSIO), "r" (PORT_PAD_CTL));
     asm volatile ("setc res[%0], %1" :: "r" (qspi->qspiCS), "r" (PORT_PAD_CTL));
-    #elif defined(__VX4B__)
-    asm volatile ("xm.setc %0, %1" :: "r" (qspi->qspiSCLK), "r" (PORT_PAD_CTL));
-    asm volatile ("xm.setc %0, %1" :: "r" (qspi->qspiSIO), "r" (PORT_PAD_CTL));
-    asm volatile ("xm.setc %0, %1" :: "r" (qspi->qspiCS), "r" (PORT_PAD_CTL));
-    #endif
 #endif
 
 }
@@ -122,13 +119,28 @@ static unsigned read_data_check[PATTERN_WORDS] = {
     0x639c639c
 };
 
+// True if the weights image starts at absolute flash address base.
+// Uses libquadflash's ordinary (untuned) reads, relative to the boot partition size.
+static int image_at(unsigned base) {
+    if (base + FAST_FLASH_IMAGE_VERSION_OFFSET + 4 > fl_getFlashSize()) return 0;
+    fl_setBootPartitionSize(base);
+    unsigned char b[4];
+    if (fl_readData(FAST_FLASH_IMAGE_VERSION_OFFSET, 4, b) != 0) return 0;
+    return fast_flash_is_image_version(b[0] | (b[1] << 8) | (b[2] << 16) | ((unsigned)b[3] << 24));
+}
+
 int fast_flash_init(fl_QSPIPorts *qspi) {
-    #ifdef __XS3A__
-    data_offset = fl_getDataPartitionBase();
+    unsigned reported = fl_getDataPartitionBase();
+    if (image_at(reported)) {
+        data_offset = reported;
+    } else if (image_at(0)) {
+        data_offset = 0;
+        printf("Weights image not at reported data partition base %u; using 0\n", reported);
+    } else {
+        printf("No weights image found (tried %u and 0)\n", reported);
+        return FAST_FLASH_ERROR_NO_IMAGE;
+    }
     printf("Data partition base: %d\n", data_offset);
-    #elif __VX4B__
-    data_offset = 4194304;// TODO fl_getDataPartitionBase();
-    #endif
 
     // Setup the clock block and ports
     ports_clocks_setup(qspi);
@@ -213,4 +225,4 @@ void fast_flash_read(fl_QSPIPorts *qspi, unsigned addr, unsigned read_count, uns
     fast_read_loop(qspi, data_offset + addr, 0, best_read_adj, read_count, read_data, c_data_out);
 }
 
-#endif // defined(__xcore__)
+#endif // defined(__XS3A__)
