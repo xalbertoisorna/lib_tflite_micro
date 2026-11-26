@@ -1,7 +1,14 @@
 #ifndef _tile_ram_server_h_
 #define _tile_ram_server_h_
 
-#include "flash_server.h"
+#include <stdint.h>
+#ifndef __XC__
+#include <xcore/channel.h>    // chanend_t (XC uses the native chanend type)
+#endif
+#include "weights_server.h"
+
+/** Header describing a client's data in tile RAM. */
+typedef weights_server_header_t tile_ram_header_t;
 
 /**
  * Function that runs a flash-server. A flash server is a thread that serves one
@@ -28,10 +35,10 @@
  * \param n_tile_ram_flash  Number of bytes in array
  */
 #ifdef __XC__
-void tile_ram_server(chanend c_tile_ram_clients[], flash_t headers[],
+void tile_ram_server(chanend c_tile_ram_clients[], tile_ram_header_t headers[],
                      int n_tile_ram_clients, const int8_t data[]);
 #else
-void tile_ram_server(chanend_t *c_tile_ram_clients, flash_t *headers,
+void tile_ram_server(chanend_t *c_tile_ram_clients, tile_ram_header_t *headers,
                      int n_tile_ram_clients, const int8_t *data);
 #endif
 

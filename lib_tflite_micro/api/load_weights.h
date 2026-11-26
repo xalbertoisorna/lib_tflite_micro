@@ -3,8 +3,9 @@
 
 #include <xcore/channel.h>
 #include "thread_call.h"
+#include "weights_server.h"
 
-#define LOAD_WEIGHTS_MAX_BLOCKS   2
+#define LOAD_WEIGHTS_MAX_BLOCKS   WEIGHTS_SERVER_MAX_BLOCKS
 
 /**
  * Function that connects to a flash or tile-ram server and loads a series of weights.

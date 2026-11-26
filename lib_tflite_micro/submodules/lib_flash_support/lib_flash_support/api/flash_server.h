@@ -9,37 +9,17 @@
 #define EXTERN_C
 #endif
 
-/** Struct holding the "file system" meta information for each client
- * The flash is partitioned and each client has a section in the flash
- * that stores data relevant to that particular client. For example, models
- * parameters, code, etc.
- *
- * This struct caches all information necessary for a client for fast access.
- * The main program must allocate this structure, one per client, prior to
- * calling the flash server.
- *
- * If there is more than one flash device connected to the device, there can be
- * multiple flash servers.
- */
-typedef struct flash {
-  int model_start;            ///< Start address for model.
-  int parameters_start;       ///< Start address of parameters.
-  int operators_start;        ///< Start address for operator-binaries.
-  int execute_in_place_start; ///< Start address for operator-binaries.
-} flash_t;
+#include "weights_server.h"   // from lib_tflite_micro (xmos_ai_tools runtime)
 
-/** Type representing the commands that the flash server accepts */
-typedef enum flash_command {
-  FLASH_READ_PARAMETERS =
-      0, ///< Read a set of parameters.   // TODO: share with lib_tflite_micro
-  FLASH_READ_PARAMETERS_ASYNC = 1, ///< Read parameters asynchronously.
-  FLASH_READ_SYNCHRONIZE      = 2, ///< Complete async read.
-  FLASH_READ_XIP =
-      3, ///< Read code to execute-in-place throught L2 cache - future extension
-  FLASH_SERVER_QUIT = 4,
-  FLASH_SERVER_INIT = 5, // Initialize flash server with fast flash pattern speed match setup
-  //FLASH_READ_PARAMETERS_COMPRESSED_FLOAT = 6, // Read a set of compressed parameters
-} flash_command_t;
+/** Flash names for the generic weights-server protocol. */
+typedef weights_server_header_t flash_t;
+typedef weights_server_cmd_t    flash_command_t;
+#define FLASH_READ_PARAMETERS       WEIGHTS_READ_PARAMETERS
+#define FLASH_READ_PARAMETERS_ASYNC WEIGHTS_READ_PARAMETERS_ASYNC
+#define FLASH_READ_SYNCHRONIZE      WEIGHTS_READ_SYNCHRONIZE
+#define FLASH_READ_XIP              WEIGHTS_READ_XIP
+#define FLASH_SERVER_QUIT           WEIGHTS_SERVER_QUIT
+#define FLASH_SERVER_INIT           WEIGHTS_SERVER_INIT
 
 /**
  * Function that runs a flash-server. A flash server is a thread that serves one

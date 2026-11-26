@@ -73,6 +73,15 @@ else()
     target_compile_features(${LIB_NAME} PUBLIC cxx_std_17)
 endif()
 
+# lib_flash_support (device builds only): flash weights server, packaged into this library
+set(LIB_FLASH_SUPPORT_DIR "${CMAKE_CURRENT_LIST_DIR}/submodules/lib_flash_support/lib_flash_support")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL XCORE_XS3A OR CMAKE_SYSTEM_PROCESSOR STREQUAL XCORE_VX4
+   OR CMAKE_SYSTEM_PROCESSOR STREQUAL XCORE_VX4B OR CMAKE_SYSTEM_PROCESSOR STREQUAL riscv32)
+    set(BUILD_LIB_FLASH_SUPPORT ON)
+    add_subdirectory("${LIB_FLASH_SUPPORT_DIR}" "${CMAKE_BINARY_DIR}/lib_flash_support")
+    target_sources(${LIB_NAME} PRIVATE $<TARGET_OBJECTS:lib_flash_support>)
+endif()
+
 # Link and compile options
 target_link_libraries(${LIB_NAME} PUBLIC lib_nn)
 target_compile_options(${LIB_NAME} PRIVATE ${BUILD_FLAGS})
@@ -101,13 +110,21 @@ install(DIRECTORY
 )
 install(FILES
     "${TFLIB_DIR}/api/api.h"
-    "${TFLIB_DIR}/api/flash_server.h"
-    "${TFLIB_DIR}/api/fast_flash.h"
+    "${TFLIB_DIR}/api/weights_server.h"
     "${TFLIB_DIR}/api/ioserver.h"
     "${TFLIB_DIR}/api/tile_ram_server.h"
     DESTINATION "${INCLUDE_DIR}"
     COMPONENT headers
 )
+
+# lib_flash_support install (flash_server.h, fast_flash.h at the include root)
+if(BUILD_LIB_FLASH_SUPPORT)
+    install(DIRECTORY "${LIB_FLASH_SUPPORT_DIR}/api/"
+        DESTINATION "${INCLUDE_DIR}"
+        COMPONENT headers
+        FILES_MATCHING PATTERN "*.h"
+    )
+endif()
 
 # lib_xud install
 install(DIRECTORY "${LIB_XUD_ROOT_DIR}/lib_xud/api"

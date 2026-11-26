@@ -1,4 +1,7 @@
-#include "api.h"
+// VX4B toolchain detection (was provided by lib_tflite_micro api.h)
+#if defined(__riscv_xxcore) && !defined(__VX4B__)
+#define __VX4B__ 1
+#endif
 
 #if defined(__VX4B__)
 
